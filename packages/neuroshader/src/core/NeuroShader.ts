@@ -1,6 +1,11 @@
 import { EffectComposer, RenderPass } from 'postprocessing'
+import type { Pass } from 'postprocessing'
 import * as THREE from 'three'
-import type { NeuroConfig } from '../types'
+import { registerBuiltinEffects } from '../effects'
+import { getEffect } from '../registry'
+import { resolveParams } from '../resolveParams'
+import { LAYER_ORDER } from '../types'
+import type { EffectHandle, NeuroConfig, PassContext, SceneContext } from '../types'
 
 export interface NeuroShaderOptions {
   /** Named assets (textures, video, models) supplied by the host at runtime. */
@@ -14,12 +19,12 @@ export interface NeuroShaderOptions {
 const DEFAULT_BACKGROUND = '#05070a'
 
 /**
- * The neuroshader runtime. Mounts a WebGL canvas, builds a Three.js scene and
- * a postprocessing composer, and renders a config on a continuous loop.
+ * The neuroshader runtime. Mounts a WebGL canvas, builds a Three.js scene plus
+ * a postprocessing composer entirely from a {@link NeuroConfig}, and renders it
+ * on a continuous loop.
  *
- * M1: renders a fixed "bootstrap" scene (a rotating, lit, shadow-casting cube)
- * to prove the pipeline end to end. M2 replaces this with config-driven scene
- * + pass effects sourced from the registry.
+ * Scene/object-layer effects mutate the scene; the four screen-space layers
+ * compile, in fixed layer order, into the composer's pass chain.
  */
 export class NeuroShader {
   readonly canvas: HTMLCanvasElement
@@ -29,22 +34,24 @@ export class NeuroShader {
   readonly composer: EffectComposer
 
   private readonly _config: NeuroConfig
+  private readonly _assets: Record<string, unknown>
   private readonly _sizeEl: HTMLElement
   private readonly _resizeObserver: ResizeObserver
+  private readonly _handles: EffectHandle[] = []
+  private readonly _passes: Pass[] = []
   private _raf = 0
   private _running = false
   private _lastTime = 0
   private _elapsed = 0
-
-  /** M1-only bootstrap scene; removed once the scene is config-driven (M2). */
-  private _bootstrap?: { mesh: THREE.Mesh; dispose: () => void }
 
   constructor(
     target: HTMLElement | HTMLCanvasElement,
     config: NeuroConfig,
     options: NeuroShaderOptions = {},
   ) {
+    registerBuiltinEffects()
     this._config = config
+    this._assets = options.assets ?? {}
 
     // Resolve the canvas and the element we measure for sizing.
     if (target instanceof HTMLCanvasElement) {
@@ -86,14 +93,13 @@ export class NeuroShader {
     const [tx, ty, tz] = config.camera?.target ?? [0, 0, 0]
     this.camera.lookAt(tx, ty, tz)
 
-    // HalfFloat frame buffer keeps headroom for HDR effects (bloom, M2).
+    // HalfFloat frame buffer keeps headroom for HDR effects (e.g. bloom).
     this.composer = new EffectComposer(this.renderer, {
       frameBufferType: THREE.HalfFloatType,
     })
-    this.composer.addPass(new RenderPass(this.scene, this.camera))
     this.composer.setSize(width, height, false)
 
-    this._buildBootstrapScene()
+    this._build()
 
     this._resizeObserver = new ResizeObserver(() => this._resize())
     this._resizeObserver.observe(this._sizeEl)
@@ -127,12 +133,53 @@ export class NeuroShader {
   dispose(): void {
     this.stop()
     this._resizeObserver.disconnect()
-    this._bootstrap?.dispose()
+    for (const handle of this._handles) handle.dispose?.()
+    this._handles.length = 0
+    for (const pass of this._passes) pass.dispose()
+    this._passes.length = 0
     this.composer.dispose()
     this.renderer.dispose()
   }
 
   // -------------------------------------------------------------------------
+
+  /** Assemble the scene and composer chain from the config. */
+  private _build(): void {
+    const sceneCtx: SceneContext = {
+      scene: this.scene,
+      camera: this.camera,
+      renderer: this.renderer,
+      assets: this._assets,
+    }
+    const passCtx: PassContext = { camera: this.camera, assets: this._assets }
+
+    this.composer.addPass(new RenderPass(this.scene, this.camera))
+
+    for (const layer of LAYER_ORDER) {
+      const layerConfig = this._config.layers[layer]
+      if (!layerConfig || layerConfig.enabled === false) continue
+
+      for (const instance of layerConfig.effects) {
+        if (instance.enabled === false) continue
+
+        const manifest = getEffect(instance.type)
+        if (!manifest) {
+          console.warn(`[neuroshader] unknown effect "${instance.type}" (skipped)`)
+          continue
+        }
+
+        const params = resolveParams(manifest.params, instance.params)
+        if (manifest.kind === 'scene') {
+          const handle = manifest.create(sceneCtx, params)
+          if (handle) this._handles.push(handle)
+        } else {
+          const pass = manifest.createPass(params, passCtx)
+          this.composer.addPass(pass)
+          this._passes.push(pass)
+        }
+      }
+    }
+  }
 
   private _tick = (): void => {
     this._raf = requestAnimationFrame(this._tick)
@@ -142,11 +189,8 @@ export class NeuroShader {
     this._lastTime = now
     this._elapsed += delta
 
-    // M1: spin the bootstrap cube.
-    if (this._bootstrap) {
-      this._bootstrap.mesh.rotation.x += delta * 0.35
-      this._bootstrap.mesh.rotation.y += delta * 0.55
-    }
+    const frame = { elapsed: this._elapsed, delta }
+    for (const handle of this._handles) handle.update?.(frame)
 
     this.composer.render(delta)
   }
@@ -164,67 +208,6 @@ export class NeuroShader {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.composer.setSize(width, height, false)
-  }
-
-  /** Temporary M1 hero scene: a rotating, lit, shadow-casting cube. */
-  private _buildBootstrapScene(): void {
-    const group = new THREE.Group()
-
-    // Cyan key light with soft shadows.
-    const key = new THREE.DirectionalLight(0x8fdfff, 3)
-    key.position.set(4, 6, 5)
-    key.castShadow = true
-    key.shadow.mapSize.set(1024, 1024)
-    key.shadow.camera.near = 1
-    key.shadow.camera.far = 30
-    const shadowCam = key.shadow.camera
-    shadowCam.left = -8
-    shadowCam.right = 8
-    shadowCam.top = 8
-    shadowCam.bottom = -8
-    shadowCam.updateProjectionMatrix()
-    group.add(key)
-
-    // Ambient fill + cool rim for a sci-fi edge.
-    group.add(new THREE.AmbientLight(0x152a33, 1.2))
-    const rim = new THREE.DirectionalLight(0x2bd1e6, 2)
-    rim.position.set(-5, 2, -4)
-    group.add(rim)
-
-    // The hero cube.
-    const geometry = new THREE.BoxGeometry(1.6, 1.6, 1.6)
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x0e2a33,
-      metalness: 0.6,
-      roughness: 0.25,
-      emissive: 0x07171c,
-    })
-    const mesh = new THREE.Mesh(geometry, material)
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    group.add(mesh)
-
-    // Ground plane that only shows the shadow over the background.
-    const groundGeo = new THREE.PlaneGeometry(40, 40)
-    const groundMat = new THREE.ShadowMaterial({ opacity: 0.55 })
-    const ground = new THREE.Mesh(groundGeo, groundMat)
-    ground.rotation.x = -Math.PI / 2
-    ground.position.y = -1.4
-    ground.receiveShadow = true
-    group.add(ground)
-
-    this.scene.add(group)
-
-    this._bootstrap = {
-      mesh,
-      dispose: () => {
-        geometry.dispose()
-        material.dispose()
-        groundGeo.dispose()
-        groundMat.dispose()
-        this.scene.remove(group)
-      },
-    }
   }
 }
 
