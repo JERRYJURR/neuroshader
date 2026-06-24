@@ -1,0 +1,60 @@
+{
+  "name": "neuroshader",
+  "version": "0.1.0",
+  "description": "Author sci-fi, neuro-distorted WebGL effects visually — render them anywhere. A layered Three.js + postprocessing runtime driven by a tiny declarative config.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Jerry Kou",
+  "homepage": "https://github.com/JERRYJURR/neuroshader#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JERRYJURR/neuroshader.git",
+    "directory": "packages/neuroshader"
+  },
+  "bugs": {
+    "url": "https://github.com/JERRYJURR/neuroshader/issues"
+  },
+  "keywords": [
+    "webgl",
+    "three",
+    "threejs",
+    "shader",
+    "glsl",
+    "postprocessing",
+    "effects",
+    "sci-fi",
+    "distortion",
+    "creative-coding"
+  ],
+  "sideEffects": false,
+  "main": "./dist/neuroshader.umd.cjs",
+  "module": "./dist/neuroshader.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/neuroshader.js",
+      "require": "./dist/neuroshader.umd.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "postprocessing": "^6.39.1",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/three": "^0.184.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-dts": "^5.0.2"
+  }
+}
