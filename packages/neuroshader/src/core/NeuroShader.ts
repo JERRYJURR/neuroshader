@@ -33,8 +33,9 @@ export class NeuroShader {
   readonly camera: THREE.PerspectiveCamera
   readonly composer: EffectComposer
 
-  private readonly _config: NeuroConfig
+  private _config: NeuroConfig
   private readonly _assets: Record<string, unknown>
+  private readonly _ownsCanvas: boolean
   private readonly _sizeEl: HTMLElement
   private readonly _resizeObserver: ResizeObserver
   private readonly _handles: EffectHandle[] = []
@@ -57,6 +58,7 @@ export class NeuroShader {
     if (target instanceof HTMLCanvasElement) {
       this.canvas = target
       this._sizeEl = target.parentElement ?? target
+      this._ownsCanvas = false
     } else {
       this.canvas = document.createElement('canvas')
       this.canvas.style.display = 'block'
@@ -64,6 +66,7 @@ export class NeuroShader {
       this.canvas.style.height = '100%'
       target.appendChild(this.canvas)
       this._sizeEl = target
+      this._ownsCanvas = true
     }
 
     const { width, height } = this._measure()
@@ -130,15 +133,33 @@ export class NeuroShader {
     cancelAnimationFrame(this._raf)
   }
 
+  /**
+   * Swap in a new config. Tears down the current scene effects + pass chain and
+   * rebuilds from `config`, reusing the renderer, canvas, scene, and composer.
+   * This is what the editor calls on every structural change.
+   */
+  setConfig(config: NeuroConfig): void {
+    this._config = config
+    this._teardown()
+
+    this.scene.background = new THREE.Color(config.background ?? DEFAULT_BACKGROUND)
+    this.camera.fov = config.camera?.fov ?? 45
+    const [px, py, pz] = config.camera?.position ?? [0, 0, 5]
+    this.camera.position.set(px, py, pz)
+    const [tx, ty, tz] = config.camera?.target ?? [0, 0, 0]
+    this.camera.lookAt(tx, ty, tz)
+    this.camera.updateProjectionMatrix()
+
+    this._build()
+  }
+
   dispose(): void {
     this.stop()
     this._resizeObserver.disconnect()
-    for (const handle of this._handles) handle.dispose?.()
-    this._handles.length = 0
-    for (const pass of this._passes) pass.dispose()
-    this._passes.length = 0
+    this._teardown()
     this.composer.dispose()
     this.renderer.dispose()
+    if (this._ownsCanvas) this.canvas.remove()
   }
 
   // -------------------------------------------------------------------------
@@ -153,7 +174,9 @@ export class NeuroShader {
     }
     const passCtx: PassContext = { camera: this.camera, assets: this._assets }
 
-    this.composer.addPass(new RenderPass(this.scene, this.camera))
+    const renderPass = new RenderPass(this.scene, this.camera)
+    this.composer.addPass(renderPass)
+    this._passes.push(renderPass)
 
     for (const layer of LAYER_ORDER) {
       const layerConfig = this._config.layers[layer]
@@ -179,6 +202,15 @@ export class NeuroShader {
         }
       }
     }
+  }
+
+  /** Dispose all scene-effect handles and composer passes. */
+  private _teardown(): void {
+    for (const handle of this._handles) handle.dispose?.()
+    this._handles.length = 0
+    this.composer.removeAllPasses()
+    for (const pass of this._passes) pass.dispose()
+    this._passes.length = 0
   }
 
   private _tick = (): void => {
