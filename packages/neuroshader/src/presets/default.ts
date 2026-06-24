@@ -16,6 +16,7 @@ export const defaultPreset: NeuroConfig = {
   layers: {
     scene: {
       effects: [
+        { type: 'background', params: { color: '#05070a' } },
         {
           type: 'ambientLight',
           params: { color: '#1a3a44', intensity: 0.5 },
@@ -29,7 +30,10 @@ export const defaultPreset: NeuroConfig = {
             castShadow: true,
           },
         },
-        { type: 'shadowGround', params: { opacity: 0.55, y: -1.4 } },
+        {
+          type: 'backdrop',
+          params: { color: '#0c1a20', roughness: 0.8, metalness: 0.1, height: -1.4 },
+        },
       ],
     },
     object: {

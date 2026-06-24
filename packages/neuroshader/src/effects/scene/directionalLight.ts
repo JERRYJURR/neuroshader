@@ -19,7 +19,8 @@ export const directionalLight = {
 
     if (p.castShadow as boolean) {
       light.castShadow = true
-      light.shadow.mapSize.set(1024, 1024)
+      light.shadow.mapSize.set(2048, 2048)
+      light.shadow.normalBias = 0.02
       light.shadow.camera.near = 1
       light.shadow.camera.far = 30
       const cam = light.shadow.camera

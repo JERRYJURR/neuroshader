@@ -1,9 +1,11 @@
 import { defineEffect } from '../registry'
 import type { EffectManifest } from '../types'
 
+import { background } from './scene/background'
 import { ambientLight } from './scene/ambientLight'
 import { directionalLight } from './scene/directionalLight'
 import { shadowGround } from './scene/shadowGround'
+import { backdrop } from './scene/backdrop'
 import { primitive } from './object/primitive'
 import { lensDistort } from './passes/lensDistort'
 import { posterize } from './passes/posterize'
@@ -14,9 +16,11 @@ import { colorOverlay } from './passes/colorOverlay'
 
 /** Every effect that ships with neuroshader, in palette order. */
 export const builtinEffects: EffectManifest[] = [
+  background,
   ambientLight,
   directionalLight,
   shadowGround,
+  backdrop,
   primitive,
   lensDistort,
   posterize,
