@@ -47,11 +47,98 @@ button:disabled {
 
 /* ---- Layout ---------------------------------------------------------- */
 
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
 .app {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 300px 1fr 320px;
-  height: 100vh;
   overflow: hidden;
+}
+
+/* ---- Top bar --------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  height: 46px;
+  padding: 0 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.brand span {
+  color: var(--accent);
+}
+
+.brand em {
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.doc-name {
+  color: var(--muted);
+  font-size: 12px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+
+.grow {
+  flex: 1;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.topbar button,
+.xsec-head button {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  border-radius: 5px;
+}
+
+.topbar button:hover,
+.xsec-head button:hover {
+  border-color: var(--muted);
+}
+
+.topbar button.primary,
+.xsec-head button.primary {
+  color: #04181d;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.topbar button.primary:hover,
+.xsec-head button.primary:hover {
+  background: #6fecff;
 }
 
 .panel {
@@ -430,4 +517,112 @@ button:disabled {
   height: 15px;
   cursor: pointer;
   accent-color: var(--accent);
+}
+
+/* ---- Export modal ---------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 4, 6, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  width: 100%;
+  max-width: 620px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-close {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.modal-intro {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.xsec {
+  margin-bottom: 16px;
+}
+
+.xsec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.xstep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 50%;
+}
+
+.muted-inline {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.code {
+  margin: 0;
+  padding: 11px 13px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  background: #06090d;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.code.scroll {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre;
 }
