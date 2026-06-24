@@ -56,6 +56,7 @@ export class NeuroShader {
   private readonly _handles: EffectHandle[] = []
   private readonly _passes: Pass[] = []
   private readonly _byId = new Map<string, BuiltEffect>()
+  private readonly _pointer = new THREE.Vector2(0.5, 0.5)
   private _raf = 0
   private _running = false
   private _lastTime = 0
@@ -83,6 +84,8 @@ export class NeuroShader {
       this._sizeEl = target
       this._ownsCanvas = true
     }
+
+    this.canvas.addEventListener('pointermove', this._onPointerMove)
 
     const { width, height } = this._measure()
 
@@ -192,6 +195,7 @@ export class NeuroShader {
   dispose(): void {
     this.stop()
     this._resizeObserver.disconnect()
+    this.canvas.removeEventListener('pointermove', this._onPointerMove)
     this._teardown()
     this.composer.dispose()
     this.renderer.dispose()
@@ -208,7 +212,11 @@ export class NeuroShader {
       renderer: this.renderer,
       assets: this._assets,
     }
-    const passCtx: PassContext = { camera: this.camera, assets: this._assets }
+    const passCtx: PassContext = {
+      camera: this.camera,
+      assets: this._assets,
+      pointer: this._pointer,
+    }
 
     const renderPass = new RenderPass(this.scene, this.camera)
     this.composer.addPass(renderPass)
@@ -274,6 +282,15 @@ export class NeuroShader {
       width: this._sizeEl.clientWidth || window.innerWidth,
       height: this._sizeEl.clientHeight || window.innerHeight,
     }
+  }
+
+  private _onPointerMove = (e: PointerEvent): void => {
+    const rect = this.canvas.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return
+    this._pointer.set(
+      (e.clientX - rect.left) / rect.width,
+      1 - (e.clientY - rect.top) / rect.height,
+    )
   }
 
   private _resize = (): void => {

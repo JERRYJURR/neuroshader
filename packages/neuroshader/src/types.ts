@@ -129,6 +129,8 @@ export interface SceneContext {
 export interface PassContext {
   camera: THREE.PerspectiveCamera
   assets: Record<string, unknown>
+  /** Live normalized pointer position over the canvas (0..1, y-up). */
+  pointer: THREE.Vector2
 }
 
 /** Returned by an effect's factory; lets the runtime drive and tear it down. */
