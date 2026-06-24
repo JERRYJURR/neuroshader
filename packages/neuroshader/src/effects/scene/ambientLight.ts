@@ -14,6 +14,10 @@ export const ambientLight = {
     const light = new AmbientLight(new Color(p.color as string), p.intensity as number)
     ctx.scene.add(light)
     return {
+      setParams: (params) => {
+        if (typeof params.color === 'string') light.color.set(params.color)
+        if (typeof params.intensity === 'number') light.intensity = params.intensity
+      },
       dispose: () => {
         ctx.scene.remove(light)
         light.dispose()

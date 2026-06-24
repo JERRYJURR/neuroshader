@@ -19,6 +19,10 @@ export const shadowGround = {
     ground.receiveShadow = true
     ctx.scene.add(ground)
     return {
+      setParams: (params) => {
+        if (typeof params.opacity === 'number') material.opacity = params.opacity
+        if (typeof params.y === 'number') ground.position.y = params.y
+      },
       dispose: () => {
         ctx.scene.remove(ground)
         geometry.dispose()

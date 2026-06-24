@@ -61,12 +61,22 @@ export const primitive = {
     mesh.receiveShadow = true
     ctx.scene.add(mesh)
 
-    const spinX = p.spinX as number
-    const spinY = p.spinY as number
+    const spin = { x: p.spinX as number, y: p.spinY as number }
+
     return {
       update: ({ delta }) => {
-        mesh.rotation.x += delta * spinX
-        mesh.rotation.y += delta * spinY
+        mesh.rotation.x += delta * spin.x
+        mesh.rotation.y += delta * spin.y
+      },
+      setParams: (params) => {
+        // Shape/size change geometry — let the runtime rebuild.
+        if ('shape' in params || 'size' in params) return false
+        if (typeof params.color === 'string') material.color.set(params.color)
+        if (typeof params.metalness === 'number') material.metalness = params.metalness
+        if (typeof params.roughness === 'number') material.roughness = params.roughness
+        if (typeof params.spinX === 'number') spin.x = params.spinX
+        if (typeof params.spinY === 'number') spin.y = params.spinY
+        return true
       },
       dispose: () => {
         ctx.scene.remove(mesh)

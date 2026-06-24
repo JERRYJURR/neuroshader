@@ -1,30 +1,26 @@
 import { useEffect, useRef } from 'react'
 import { createNeuroShader } from 'neuroshader'
-import type { NeuroShader } from 'neuroshader'
 import { useEditor } from '../store'
 
 export function CanvasPreview() {
   const hostRef = useRef<HTMLDivElement>(null)
-  const nsRef = useRef<NeuroShader | null>(null)
-  const config = useEditor((s) => s.config)
+  const setEngine = useEditor((s) => s.setEngine)
 
-  // Create the runtime once, against the live config.
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+
+    // Create the runtime against the current config and register it so the
+    // store can drive it (setConfig for structure, updateParams for live edits).
     const ns = createNeuroShader(host, useEditor.getState().config)
     ns.start()
-    nsRef.current = ns
+    setEngine(ns)
+
     return () => {
       ns.dispose()
-      nsRef.current = null
+      if (useEditor.getState().engine === ns) setEngine(null)
     }
-  }, [])
-
-  // Push every config change into the running engine.
-  useEffect(() => {
-    nsRef.current?.setConfig(config)
-  }, [config])
+  }, [setEngine])
 
   return <div className="canvas-host" ref={hostRef} />
 }

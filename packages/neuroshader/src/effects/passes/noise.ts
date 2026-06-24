@@ -1,6 +1,6 @@
-import { Effect, EffectPass } from 'postprocessing'
+import { Effect } from 'postprocessing'
 import { Uniform } from 'three'
-import type { PassEffectManifest } from '../../types'
+import type { ParamValues, PassEffectManifest } from '../../types'
 
 // `time` is a built-in postprocessing uniform, auto-updated each frame.
 const fragmentShader = /* glsl */ `
@@ -17,10 +17,18 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
 `
 
 class GrainEffect extends Effect {
+  private readonly uAmount: Uniform<number>
+
   constructor(amount: number) {
+    const uAmount = new Uniform(amount)
     super('GrainEffect', fragmentShader, {
-      uniforms: new Map<string, Uniform>([['amount', new Uniform(amount)]]),
+      uniforms: new Map<string, Uniform>([['amount', uAmount]]),
     })
+    this.uAmount = uAmount
+  }
+
+  applyParams(params: ParamValues): void {
+    if (typeof params.amount === 'number') this.uAmount.value = params.amount
   }
 }
 
@@ -32,6 +40,8 @@ export const noise = {
   params: {
     amount: { type: 'number', label: 'Amount', min: 0, max: 0.5, step: 0.005, default: 0.08 },
   },
-  createPass: (p, ctx) =>
-    new EffectPass(ctx.camera, new GrainEffect(p.amount as number)),
+  createEffect: (p) => new GrainEffect(p.amount as number),
+  updateEffect: (effect, p) => {
+    ;(effect as GrainEffect).applyParams(p)
+  },
 } satisfies PassEffectManifest

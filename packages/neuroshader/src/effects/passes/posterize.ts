@@ -1,6 +1,6 @@
-import { Effect, EffectPass } from 'postprocessing'
+import { Effect } from 'postprocessing'
 import { Uniform } from 'three'
-import type { PassEffectManifest } from '../../types'
+import type { ParamValues, PassEffectManifest } from '../../types'
 
 // Quantize in gamma (perceptual) space so bands are spaced evenly across the
 // visible range — matching the After Effects Posterize filter, and keeping
@@ -16,10 +16,18 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
 `
 
 class PosterizeEffect extends Effect {
+  private readonly uLevels: Uniform<number>
+
   constructor(levels: number) {
+    const uLevels = new Uniform(levels)
     super('PosterizeEffect', fragmentShader, {
-      uniforms: new Map<string, Uniform>([['levels', new Uniform(levels)]]),
+      uniforms: new Map<string, Uniform>([['levels', uLevels]]),
     })
+    this.uLevels = uLevels
+  }
+
+  applyParams(params: ParamValues): void {
+    if (typeof params.levels === 'number') this.uLevels.value = params.levels
   }
 }
 
@@ -31,6 +39,8 @@ export const posterize = {
   params: {
     levels: { type: 'number', label: 'Levels', min: 2, max: 16, step: 1, default: 6 },
   },
-  createPass: (p, ctx) =>
-    new EffectPass(ctx.camera, new PosterizeEffect(p.levels as number)),
+  createEffect: (p) => new PosterizeEffect(p.levels as number),
+  updateEffect: (effect, p) => {
+    ;(effect as PosterizeEffect).applyParams(p)
+  },
 } satisfies PassEffectManifest

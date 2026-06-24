@@ -1,4 +1,4 @@
-import type { Pass } from 'postprocessing'
+import type { Effect } from 'postprocessing'
 import type * as THREE from 'three'
 
 /**
@@ -135,8 +135,12 @@ export interface PassContext {
 export interface EffectHandle {
   /** Called once per frame. */
   update?: (frame: FrameContext) => void
-  /** Apply new param values without a full rebuild. */
-  setParams?: (params: ParamValues) => void
+  /**
+   * Apply changed param values in place (no rebuild). Receives only the keys
+   * that changed. Return `false` to signal the change needs a full rebuild
+   * (e.g. geometry-altering params); anything else counts as handled live.
+   */
+  setParams?: (params: ParamValues) => boolean | void
   /** Release GPU/CPU resources. */
   dispose?: () => void
 }
@@ -155,8 +159,13 @@ export interface SceneEffectManifest extends ManifestBase {
 
 export interface PassEffectManifest extends ManifestBase {
   kind: 'pass'
-  /** Build a postprocessing pass for the composer chain. */
-  createPass: (params: ParamValues, ctx: PassContext) => Pass
+  /** Build a postprocessing Effect; the runtime wraps it in an EffectPass. */
+  createEffect: (params: ParamValues, ctx: PassContext) => Effect
+  /**
+   * Apply changed param values to a live Effect in place (no rebuild). Receives
+   * only the changed keys. Return `false` to request a full rebuild instead.
+   */
+  updateEffect?: (effect: Effect, params: ParamValues) => boolean | void
 }
 
 export type EffectManifest = SceneEffectManifest | PassEffectManifest

@@ -1,6 +1,6 @@
-import { Effect, EffectPass } from 'postprocessing'
+import { Effect } from 'postprocessing'
 import { Uniform } from 'three'
-import type { PassEffectManifest } from '../../types'
+import type { ParamValues, PassEffectManifest } from '../../types'
 
 const fragmentShader = /* glsl */ `
 uniform float strength;
@@ -12,10 +12,18 @@ void mainUv(inout vec2 uv) {
 `
 
 class LensDistortEffect extends Effect {
+  private readonly uStrength: Uniform<number>
+
   constructor(strength: number) {
+    const uStrength = new Uniform(strength)
     super('LensDistortEffect', fragmentShader, {
-      uniforms: new Map<string, Uniform>([['strength', new Uniform(strength)]]),
+      uniforms: new Map<string, Uniform>([['strength', uStrength]]),
     })
+    this.uStrength = uStrength
+  }
+
+  applyParams(params: ParamValues): void {
+    if (typeof params.strength === 'number') this.uStrength.value = params.strength
   }
 }
 
@@ -27,6 +35,8 @@ export const lensDistort = {
   params: {
     strength: { type: 'number', label: 'Strength', min: -1, max: 1, step: 0.01, default: 0.35 },
   },
-  createPass: (p, ctx) =>
-    new EffectPass(ctx.camera, new LensDistortEffect(p.strength as number)),
+  createEffect: (p) => new LensDistortEffect(p.strength as number),
+  updateEffect: (effect, p) => {
+    ;(effect as LensDistortEffect).applyParams(p)
+  },
 } satisfies PassEffectManifest

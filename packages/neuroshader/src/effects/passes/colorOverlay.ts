@@ -1,6 +1,6 @@
-import { BlendFunction, Effect, EffectPass } from 'postprocessing'
+import { BlendFunction, Effect } from 'postprocessing'
 import { Color, Uniform } from 'three'
-import type { PassEffectManifest } from '../../types'
+import type { ParamValues, PassEffectManifest } from '../../types'
 
 // Emit a solid color; the Effect's blend mode composites it over the input.
 const fragmentShader = /* glsl */ `
@@ -19,12 +19,24 @@ const BLEND_MODES: Record<string, BlendFunction> = {
 }
 
 class ColorOverlayEffect extends Effect {
+  private readonly uColor: Uniform<Color>
+
   constructor(color: string, blend: string, opacity: number) {
+    const uColor = new Uniform(new Color(color))
     super('ColorOverlayEffect', fragmentShader, {
       blendFunction: BLEND_MODES[blend] ?? BlendFunction.SCREEN,
-      uniforms: new Map<string, Uniform>([['color', new Uniform(new Color(color))]]),
+      uniforms: new Map<string, Uniform>([['color', uColor]]),
     })
+    this.uColor = uColor
     this.blendMode.opacity.value = opacity
+  }
+
+  applyParams(params: ParamValues): boolean {
+    // Changing the blend function rebuilds the shader — let the runtime rebuild.
+    if ('blend' in params) return false
+    if (typeof params.color === 'string') this.uColor.value.set(params.color)
+    if (typeof params.opacity === 'number') this.blendMode.opacity.value = params.opacity
+    return true
   }
 }
 
@@ -49,9 +61,7 @@ export const colorOverlay = {
     },
     opacity: { type: 'number', label: 'Opacity', min: 0, max: 1, step: 0.01, default: 0.18 },
   },
-  createPass: (p, ctx) =>
-    new EffectPass(
-      ctx.camera,
-      new ColorOverlayEffect(p.color as string, p.blend as string, p.opacity as number),
-    ),
+  createEffect: (p) =>
+    new ColorOverlayEffect(p.color as string, p.blend as string, p.opacity as number),
+  updateEffect: (effect, p) => (effect as ColorOverlayEffect).applyParams(p),
 } satisfies PassEffectManifest

@@ -1,11 +1,18 @@
-import { EffectComposer, RenderPass } from 'postprocessing'
-import type { Pass } from 'postprocessing'
+import { EffectComposer, EffectPass, RenderPass } from 'postprocessing'
+import type { Effect, Pass } from 'postprocessing'
 import * as THREE from 'three'
 import { registerBuiltinEffects } from '../effects'
 import { getEffect } from '../registry'
 import { resolveParams } from '../resolveParams'
 import { LAYER_ORDER } from '../types'
-import type { EffectHandle, NeuroConfig, PassContext, SceneContext } from '../types'
+import type {
+  EffectHandle,
+  EffectManifest,
+  NeuroConfig,
+  ParamValues,
+  PassContext,
+  SceneContext,
+} from '../types'
 
 export interface NeuroShaderOptions {
   /** Named assets (textures, video, models) supplied by the host at runtime. */
@@ -18,13 +25,21 @@ export interface NeuroShaderOptions {
 
 const DEFAULT_BACKGROUND = '#05070a'
 
+/** A built effect, tracked by its instance id for live param updates. */
+interface BuiltEffect {
+  manifest: EffectManifest
+  handle?: EffectHandle
+  effect?: Effect
+}
+
 /**
  * The neuroshader runtime. Mounts a WebGL canvas, builds a Three.js scene plus
- * a postprocessing composer entirely from a {@link NeuroConfig}, and renders it
- * on a continuous loop.
+ * a postprocessing composer from a {@link NeuroConfig}, and renders it on a
+ * continuous loop.
  *
  * Scene/object-layer effects mutate the scene; the four screen-space layers
- * compile, in fixed layer order, into the composer's pass chain.
+ * compile, in fixed layer order, into the composer's pass chain (one
+ * `EffectPass` per effect).
  */
 export class NeuroShader {
   readonly canvas: HTMLCanvasElement
@@ -40,6 +55,7 @@ export class NeuroShader {
   private readonly _resizeObserver: ResizeObserver
   private readonly _handles: EffectHandle[] = []
   private readonly _passes: Pass[] = []
+  private readonly _byId = new Map<string, BuiltEffect>()
   private _raf = 0
   private _running = false
   private _lastTime = 0
@@ -54,7 +70,6 @@ export class NeuroShader {
     this._config = config
     this._assets = options.assets ?? {}
 
-    // Resolve the canvas and the element we measure for sizing.
     if (target instanceof HTMLCanvasElement) {
       this.canvas = target
       this._sizeEl = target.parentElement ?? target
@@ -135,8 +150,8 @@ export class NeuroShader {
 
   /**
    * Swap in a new config. Tears down the current scene effects + pass chain and
-   * rebuilds from `config`, reusing the renderer, canvas, scene, and composer.
-   * This is what the editor calls on every structural change.
+   * rebuilds, reusing the renderer, canvas, scene, and composer. Used for
+   * structural edits (add/remove/reorder/enable).
    */
   setConfig(config: NeuroConfig): void {
     this._config = config
@@ -151,6 +166,27 @@ export class NeuroShader {
     this.camera.updateProjectionMatrix()
 
     this._build()
+  }
+
+  /**
+   * Apply changed params to one effect *in place* (no rebuild) — used for live
+   * slider/color edits. `params` holds only the changed keys. Returns `false`
+   * if the effect can't apply the change live and a {@link setConfig} rebuild is
+   * needed (e.g. geometry- or shader-altering params).
+   */
+  updateParams(id: string, params: ParamValues): boolean {
+    const built = this._byId.get(id)
+    if (!built) return false
+    const { manifest } = built
+
+    if (manifest.kind === 'scene') {
+      const setParams = built.handle?.setParams
+      if (!setParams) return false
+      return setParams(params) !== false
+    }
+
+    if (!built.effect || !manifest.updateEffect) return false
+    return manifest.updateEffect(built.effect, params) !== false
   }
 
   dispose(): void {
@@ -182,25 +218,30 @@ export class NeuroShader {
       const layerConfig = this._config.layers[layer]
       if (!layerConfig || layerConfig.enabled === false) continue
 
-      for (const instance of layerConfig.effects) {
-        if (instance.enabled === false) continue
+      layerConfig.effects.forEach((instance, index) => {
+        if (instance.enabled === false) return
 
         const manifest = getEffect(instance.type)
         if (!manifest) {
           console.warn(`[neuroshader] unknown effect "${instance.type}" (skipped)`)
-          continue
+          return
         }
 
+        const id = instance.id ?? `${layer}:${instance.type}:${index}`
         const params = resolveParams(manifest.params, instance.params)
+
         if (manifest.kind === 'scene') {
-          const handle = manifest.create(sceneCtx, params)
+          const handle = manifest.create(sceneCtx, params) ?? undefined
           if (handle) this._handles.push(handle)
+          this._byId.set(id, { manifest, handle })
         } else {
-          const pass = manifest.createPass(params, passCtx)
+          const effect = manifest.createEffect(params, passCtx)
+          const pass = new EffectPass(this.camera, effect)
           this.composer.addPass(pass)
           this._passes.push(pass)
+          this._byId.set(id, { manifest, effect })
         }
-      }
+      })
     }
   }
 
@@ -211,6 +252,7 @@ export class NeuroShader {
     this.composer.removeAllPasses()
     for (const pass of this._passes) pass.dispose()
     this._passes.length = 0
+    this._byId.clear()
   }
 
   private _tick = (): void => {

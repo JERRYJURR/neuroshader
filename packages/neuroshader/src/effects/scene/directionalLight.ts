@@ -32,6 +32,17 @@ export const directionalLight = {
 
     ctx.scene.add(light)
     return {
+      setParams: (params) => {
+        // Toggling shadows needs a rebuild to (re)configure the shadow camera.
+        if ('castShadow' in params) return false
+        if (typeof params.color === 'string') light.color.set(params.color)
+        if (typeof params.intensity === 'number') light.intensity = params.intensity
+        if (Array.isArray(params.position)) {
+          const [nx, ny, nz] = params.position as [number, number, number]
+          light.position.set(nx, ny, nz)
+        }
+        return true
+      },
       dispose: () => {
         ctx.scene.remove(light)
         light.dispose()
