@@ -8,7 +8,9 @@ import { shadowGround } from './scene/shadowGround'
 import { backdrop } from './scene/backdrop'
 import { primitive } from './object/primitive'
 import { lensDistort } from './passes/lensDistort'
+import { solarize } from './passes/solarize'
 import { posterize } from './passes/posterize'
+import { threshold } from './passes/threshold'
 import { findEdges } from './passes/findEdges'
 import { bloom } from './passes/bloom'
 import { noise } from './passes/noise'
@@ -23,7 +25,9 @@ export const builtinEffects: EffectManifest[] = [
   backdrop,
   primitive,
   lensDistort,
+  solarize,
   posterize,
+  threshold,
   findEdges,
   bloom,
   noise,
